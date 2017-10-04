@@ -11,7 +11,7 @@ class Data:
 
     def __init__(self, author, text, date, isSpam):
         self.author = author
-        self.text = text.encode('utf-8').split()
+        self.text = text.split()
         self.date = datetime.strptime(date, '%Y-%m-%dT%H:%M:%S')
         self.is_spam = isSpam
 
@@ -56,7 +56,7 @@ class SingleDataSet(DataSet):
 
     def __init__(self, path):
         data = []
-        with open(path, 'r', encoding="utf-8") as file:
+        with open(path, 'r', encoding='ascii', errors='ignore') as file:
             data = [data for data in [Data.parse(
                 line) for line in file.readlines()] if data is not None]
 
