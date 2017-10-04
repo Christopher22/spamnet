@@ -6,10 +6,6 @@ from abc import ABC, abstractmethod
 class Preprocessor(ABC):
     """ A chainable preprocessor. """
 
-    def __init__(self, tweets):
-        """ Creates a new preprocessor. """
-        self.tweet = tweets
-
     @abstractmethod
     def __iter__(self):
         """ Returns a generator for the actual preprocessing. """
@@ -22,4 +18,18 @@ class Preprocessor(ABC):
         for i, preprocessor in enumerate(preprocessors):
             chain = (globals()[preprocessor])(tweets if i == 0 else chain)
         for tweet in chain:
+            yield tweet
+
+
+class RemoveUrls(Preprocessor):
+    """ Replace links by a fixed keyword. """
+
+    def __init__(self, tweets):
+        """ Creates a new preprocessor. """
+        self.tweets = tweets
+
+    def __iter__(self):
+        for tweet in self.tweets:
+            tweet.text = [x if not x.startswith(
+                'http') else 'URL' for x in tweet.text]
             yield tweet
