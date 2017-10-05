@@ -17,7 +17,7 @@ class Preprocessor(ABC):
         """ Optimize a tweet out of a iterator by applying a chain of preprocessors on it. """
         chain = None
         for i, preprocessor in enumerate(preprocessors):
-            chain = (globals()[preprocessor])(tweets if i == 0 else chain)
+            chain = preprocessor(tweets if i == 0 else chain)
         for tweet in chain:
             yield tweet
 
@@ -47,4 +47,17 @@ class RemoveMultipleChars:
         for tweet in self.tweets:
             tweet.text = [''.join(ch for ch, _ in groupby(word))
                           for word in tweet.text]
+            yield tweet
+
+
+class Lower:
+    "Lowerclase the text. Should be applied after POS tagging."
+
+    def __init__(self, tweets):
+        """ Creates a new preprocessor. """
+        self.tweets = tweets
+
+    def __iter__(self):
+        for tweet in self.tweets:
+            tweet.text = [word.lower() for word in tweet.text]
             yield tweet
