@@ -1,24 +1,26 @@
-# -*- coding: utf-8 -*-
-from data import SingleDataSet
-from experiment import Experiment
-import preprocessors
+from bow import BagOfWords
+from rnn import RnnClassifier
+from preprocessors import *
+from data import *
 
-from sklearn.feature_extraction.text import HashingVectorizer
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.naive_bayes import GaussianNB
+data = MixedFiles('data/*.csv')
+preprocessors = [
+    StandardizePreprocessor(),
+    SlangPreprocessor('dictionaries/slang.txt'),
+    StopwordPreprocessor(),
+    PosLemmatizationPreprocessor(),
+    StemmerPreprocessor(),
+    LowercasePreprocessor()
+]
 
-samples = SingleDataSet('../data/Youtube01-Psy.csv')
-exp = Experiment(samples)
+x_train = [comment for comment in Preprocessor.preprocess(
+    data.x_train, preprocessors)]
+bag_of_words = BagOfWords(x_train).compute(min_occurrences=2)
 
-for preprocessors in [[preprocessors.RemoveUrls,
-                       preprocessors.RemoveMultipleChars,
-                       preprocessors.Lower],
-                      [preprocessors.RemoveUrls,
-                       preprocessors.RemoveMultipleChars],
-                      [preprocessors.Lower],
-                      []]:
+x_train = [BagOfWords.transform(comment, bag_of_words) for comment in x_train]
+x_test = [BagOfWords.transform(comment, bag_of_words)
+          for comment in Preprocessor.preprocess(data.x_test, preprocessors)]
 
-    exp.conduct(HashingVectorizer, preprocessors)
-    print("Naive Bayes: {}".format(exp.evaluate(GaussianNB(), True)))
-    print("RandomForest: {}".format(exp.evaluate(
-        RandomForestClassifier(n_estimators=100))))
+rnn = RnnClassifier(num_words=(len(bag_of_words) + 2))
+rnn.fit(x_train, data.y_train)
+rnn.score(x_test, data.y_test)
