@@ -1,134 +1,91 @@
-# -*- coding: utf-8 -*-
-""" A module for efficient handling of the different datasets. """
-
-from datetime import datetime
-from abc import ABC, abstractmethod
+from abc import ABC
+import glob
 import random
 
+from sklearn.model_selection import train_test_split
 
-class Data:
-    """ A single comment in the dataset. """
 
-    def __init__(self, author, text, date, isSpam):
-        self.author = author
-        self.text = text.split()
-        self.date = datetime.strptime(date, '%Y-%m-%dT%H:%M:%S')
-        self.is_spam = isSpam
+class Data(ABC):
+    def __init__(self, x_train, y_train, x_test, y_test):
+        self.x_train = x_train
+        self.y_train = y_train
+        self.x_test = x_test
+        self.y_test = y_test
+
+    def training(self):
+        return (self.x_train, self.y_train)
+
+    def testing(self):
+        return (self.x_test, self.y_test)
 
     @staticmethod
-    def parse(line):
-        """ Parses a line to a data object. """
-        data = line.strip().split(',')
-        if len(data) == 5:
-            try:
-                data = Data(data[1], data[3], data[2], (data[4] == '1'))
-            except ValueError:
-                data = None
-        else:
-            data = None
-        return data
+    def _load_file(file):
+        with open(file, encoding='ascii', errors='ignore') as f:
+            for i, line in enumerate(f):
+                if i == 0:
+                    continue
 
-    def __repr__(self):
-        return self.__str__()
-
-    def __str__(self):
-        return u'({} ({}): {} -> {})'.format(self.author, self.date, self.text, self.is_spam)
+                txt = line.strip().split(',')
+                if txt[3].startswith('"'):
+                    txt = ''.join(txt[3:])
+                    yield [txt[1: -2].strip(), txt[-1] == '1']
+                else:
+                    yield [txt[3].strip(), txt[4] == '1']
 
 
-class DataSet(ABC):
-    """ A abstract dataset providing both training and testing set. """
-
-    @property
-    @abstractmethod
-    def training(self):
-        """ Returns the training set. """
-        raise NotImplementedError
-
-    @property
-    @abstractmethod
-    def test(self):
-        """ Returns the testing set. """
-        raise NotImplementedError
+class SingleFile(Data):
+    def __init__(self, path, test_ratio=0.3):
+        data = [comment for comment in Data._load_file(path)]
+        x_train, x_test, y_train, y_test = train_test_split(
+            [comment[0] for comment in data],
+            [comment[1] for comment in data],
+            test_size=test_ratio
+        )
+        super().__init__(x_train, y_train, x_test, y_test)
 
 
-class SingleDataSet(DataSet):
-    """ A dataset for training and testing on a single file. """
+class SplittedFile(Data):
+    def __init__(self, training, testing, test_ratio=0.3):
+        training = [comment for comment in Data._load_file(training)]
+        testing = [comment for comment in Data._load_file(testing)]
+        super().__init__(
+            [comment[0] for comment in training],
+            [comment[1] for comment in training],
+            [comment[0]
+                for comment in testing[:int(len(training) * test_ratio)]],
+            [comment[1]
+                for comment in testing[:int(len(training) * test_ratio)]]
+        )
 
-    def __init__(self, path):
+
+class MixedFiles(Data):
+    def __init__(self, paths, test_ratio=0.3):
         data = []
-        with open(path, 'r', encoding='ascii', errors='ignore') as file:
-            data = [data for data in [Data.parse(
-                line) for line in file.readlines()] if data is not None]
-
-        self._training = data[:int(len(data) * 0.7)]
-        self._test = data[int(len(data) * 0.7):]
-
-    @property
-    def training(self):
-        return self._training
-
-    @property
-    def test(self):
-        return self._test
+        for file in glob.iglob(paths):
+            data.extend(comment for comment in Data._load_file(file))
+        x_train, x_test, y_train, y_test = train_test_split(
+            [comment[0] for comment in data],
+            [comment[1] for comment in data],
+            test_size=test_ratio
+        )
+        super().__init__(x_train, y_train, x_test, y_test)
 
 
-class SplittedSingleDataSet(DataSet):
-    """ A dataset for training on one file and testing on another. """
+class SplittedMixedFiles(Data):
+    def __init__(self, paths, test_ratio=0.3):
+        files = glob.glob(paths)
+        random.shuffle(files)
 
-    def __init__(self, path_training, path_testing):
-        training = SingleDataSet(path_training)
-        testing = SingleDataSet(path_testing)
+        testing = [comment for comment in Data._load_file(paths[0])]
+        training = []
+        for i, file in enumerate(files):
+            if i == 0:
+                continue
+            training.extend(comment for comment in Data._load_file(file))
 
-        self._training = training.training + training.test
-        self._test = testing.training[:int(len(self._training) * 0.3)]
-
-    @property
-    def training(self):
-        return self._training
-
-    @property
-    def test(self):
-        return self._test
-
-
-class CombinedDataSet(DataSet):
-    """ A dataset for training and testing on multiple files. """
-
-    def __init__(self, paths):
-        self._training = []
-        self._test = []
-
-        for path in paths:
-            tmp = SingleDataSet(path)
-            self._training.extend(tmp.training)
-            self._test.extend(tmp.test)
-
-        random.shuffle(self._training)
-        random.shuffle(self._test)
-
-    @property
-    def training(self):
-        return self._training
-
-    @property
-    def test(self):
-        return self._test
-
-
-class MultiDataSet(DataSet):
-    """ A dataset for training on multiple files and testing on another file. """
-
-    def __init__(self, paths):
-        train = CombinedDataSet(paths[:len(paths) - 1])
-        test = SingleDataSet(paths[-1])
-
-        self._training = train.training + train.test
-        self._test = test.training + test.test
-
-    @property
-    def training(self):
-        return self._training
-
-    @property
-    def test(self):
-        return self._test
+        super().__init__(
+            [comment[0] for comment in training],
+            [comment[1] for comment in training],
+            [comment[0] for comment in testing],
+            [comment[1] for comment in testing]
+        )
