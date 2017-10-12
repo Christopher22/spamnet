@@ -1,7 +1,9 @@
 from abc import ABC, abstractmethod
+from sklearn.base import BaseEstimator, TransformerMixin
 
 from collections import OrderedDict
 import re
+import inspect
 
 from nltk.tag import pos_tag
 from nltk.stem import WordNetLemmatizer
@@ -18,8 +20,9 @@ class Preprocessor(ABC):
     @staticmethod
     def preprocess(comments, preprocessors):
         tokenizer = TweetTokenizer()
+        html_cleaner = re.compile('<.+?>')
         for comment in comments:
-            comment = comment.replace('<br />', '')
+            comment = html_cleaner.sub('', comment)
             tokenized_comment = tokenizer.tokenize(comment)
             for preprocessor in preprocessors:
                 tokenized_comment = preprocessor.optimize(tokenized_comment)
@@ -119,3 +122,56 @@ class StopwordPreprocessor(Preprocessor):
 class LowercasePreprocessor(Preprocessor):
     def optimize(self, tokenized_comment):
         return [word.lower() for word in tokenized_comment]
+
+
+class PunctationRemover(Preprocessor):
+    def __init__(self):
+        self.char_only = re.compile(r'[^a-zA-Z]')
+
+    def optimize(self, tokenized_comment):
+        output = []
+        for word in tokenized_comment:
+            word = self.char_only.sub('', word)
+            if len(word) > 0:
+                output.append(word)
+        return output
+
+
+class PreprocessorTransformer(BaseEstimator, TransformerMixin):
+    def __init__(self,
+                 use_standartize=True,
+                 use_slang=True,
+                 use_stopword=True,
+                 use_lemmatization=True,
+                 use_stemmer=True,
+                 use_lowercase=True,
+                 use_punctation=True):
+        args, _, _, values = inspect.getargvalues(inspect.currentframe())
+        values.pop("self")
+
+        for arg, val in values.items():
+            setattr(self, arg, val)
+
+    def fit(self, X, y=None):
+        pass
+
+    def transform(self, X, y=None):
+        preprocessors = []
+        if self.use_standartize:
+            preprocessors.append(StandardizePreprocessor())
+        if self.use_slang:
+            preprocessors.append(SlangPreprocessor('dictionaries/slang.txt'))
+        if self.use_stopword:
+            preprocessors.append(StopwordPreprocessor())
+        if self.use_lemmatization:
+            preprocessors.append(PosLemmatizationPreprocessor())
+        if self.use_stemmer:
+            preprocessors.append(StemmerPreprocessor())
+        if self.use_lowercase:
+            preprocessors.append(LowercasePreprocessor())
+        if self.use_punctation:
+            preprocessors.append(PunctationRemover())
+        return [tokenized for tokenized in Preprocessor.preprocess(X, preprocessors)]
+
+    def fit_transform(self, X, y=None):
+        return self.transform(X, y)
