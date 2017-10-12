@@ -1,26 +1,42 @@
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.ensemble import RandomForestClassifier
+
 from bow import BagOfWords
 from rnn import RnnClassifier
 from preprocessors import *
 from data import *
 
 data = MixedFiles('data/*.csv')
-preprocessors = [
-    StandardizePreprocessor(),
-    SlangPreprocessor('dictionaries/slang.txt'),
-    StopwordPreprocessor(),
-    PosLemmatizationPreprocessor(),
-    StemmerPreprocessor(),
-    LowercasePreprocessor()
-]
 
-x_train = [comment for comment in Preprocessor.preprocess(
-    data.x_train, preprocessors)]
-bag_of_words = BagOfWords(x_train).compute(min_occurrences=2)
+# Find the best RNN parameter
+rnn_pipeline = Pipeline([
+    ("pre", PreprocessorTransformer()),
+    ("bow", BagOfWords()),
+    ("rnn", RnnClassifier())
+], memory='cache')
 
-x_train = [BagOfWords.transform(comment, bag_of_words) for comment in x_train]
-x_test = [BagOfWords.transform(comment, bag_of_words)
-          for comment in Preprocessor.preprocess(data.x_test, preprocessors)]
+data.find_optimum(rnn_pipeline, {
+    "rnn__epochs": [3, 10, 20],
+    "rnn__num_hidden_neurons": [50, 100, 200],
+    "rnn__dropout": [0, 0.1, 0.2],
+    "rnn__rnn_type": ['gru', 'lstm', 'simple']
+})
 
-rnn = RnnClassifier(num_words=(len(bag_of_words) + 2))
-rnn.fit(x_train, data.y_train)
-rnn.score(x_test, data.y_test)
+# Find the best RandomForest parameter
+
+
+def dummy(x):
+    return x
+
+
+forest_pipeline = Pipeline([
+    ("pre", PreprocessorTransformer()),
+    ("vectorizer", CountVectorizer(tokenizer=dummy, preprocessor=dummy)),
+    ("forest", RandomForestClassifier(n_estimators=500))
+], memory='cache')
+
+data.find_optimum(forest_pipeline, {
+    "forest__n_estimators": [10, 100, 500, 800],
+    "forest__max_features": ['sqrt', 'log2', None],
+})
