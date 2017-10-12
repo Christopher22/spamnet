@@ -1,8 +1,11 @@
 from abc import ABC
 import glob
-import random
+import csv
 
-from sklearn.model_selection import train_test_split
+from sklearn.utils import shuffle
+from sklearn.pipeline import Pipeline
+from sklearn.model_selection import GridSearchCV, train_test_split
+from sklearn.metrics import f1_score, make_scorer
 
 
 class Data(ABC):
@@ -12,25 +15,69 @@ class Data(ABC):
         self.x_test = x_test
         self.y_test = y_test
 
-    def training(self):
-        return (self.x_train, self.y_train)
+    def training_size(self):
+        return len(self.x_train)
 
-    def testing(self):
-        return (self.x_test, self.y_test)
+    def testing_size(self):
+        return len(self.x_test)
+
+    def find_optimum(self, pipeline, parameters):
+        grid = GridSearchCV(
+            pipeline,
+            n_jobs=1,
+            verbose=1,
+            scoring={
+                'f1': make_scorer(f1_score, pos_label=True),
+                'precision': 'precision_macro',
+                'recall': 'recall_macro'
+            },
+            refit='f1',
+            cv=VariationGenerator(self, 3),
+            param_grid=parameters
+        )
+
+        grid.fit([x for x in self.x_train + self.x_test],
+                 [y for y in self.y_train + self.y_test])
+
+        for mean, std, prec, recall, params in sorted(
+            zip(grid.cv_results_['mean_test_f1'],
+                grid.cv_results_['std_test_f1'],
+                grid.cv_results_['mean_test_precision'],
+                grid.cv_results_['mean_test_recall'],
+                grid.cv_results_['params'],
+                ), key=lambda x: x[0], reverse=True)[:3]:
+
+            print("{0:1.3f} (+/-{1:1.3f}; Precision: {2:1.3f}, Recall: {3:1.3f}) for {4}".format(
+                mean,
+                std * 2,
+                prec,
+                recall,
+                params
+            ))
 
     @staticmethod
     def _load_file(file):
-        with open(file, encoding='ascii', errors='ignore') as f:
-            for i, line in enumerate(f):
-                if i == 0:
-                    continue
+        with open(file, encoding='ascii', errors='ignore') as spam:
+            for row in csv.DictReader(spam, delimiter=',', quotechar='"', skipinitialspace=True, strict=True):
+                yield [row['CONTENT'].strip(), row['CLASS'] == '1']
 
-                txt = line.strip().split(',')
-                if txt[3].startswith('"'):
-                    txt = ''.join(txt[3:])
-                    yield [txt[1: -2].strip(), txt[-1] == '1']
-                else:
-                    yield [txt[3].strip(), txt[4] == '1']
+
+class VariationGenerator:
+    def __init__(self, data, n):
+        self.n = n
+        self.training_size = data.training_size()
+        self.testing_size = data.testing_size()
+
+    def split(self, *_):
+        for _ in range(self.n):
+            yield (
+                shuffle(list(range(self.training_size))),
+                shuffle(
+                    list(range(self.training_size, self.training_size + self.testing_size)))
+            )
+
+    def get_n_splits(self, *_):
+        return self.n
 
 
 class SingleFile(Data):
@@ -78,9 +125,7 @@ class SplittedMixedFiles(Data):
 
         testing = [comment for comment in Data._load_file(paths[0])]
         training = []
-        for i, file in enumerate(files):
-            if i == 0:
-                continue
+        for i, file in enumerate(files)[1:]:
             training.extend(comment for comment in Data._load_file(file))
 
         super().__init__(
