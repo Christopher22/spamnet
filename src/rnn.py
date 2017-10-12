@@ -2,31 +2,59 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.metrics import f1_score, accuracy_score
 
 from keras.models import Sequential
-from keras.layers import Dense, LSTM, GRU, Activation
+from keras.layers import Dense, LSTM, GRU, SimpleRNN, Activation, Dropout
 from keras.layers.embeddings import Embedding
 from keras.preprocessing.sequence import pad_sequences
 
 
 class RnnClassifier(BaseEstimator, ClassifierMixin):
 
-    def __init__(self, input_length=32, num_words=5000, embedding_dimension=32, batch_size=32, epochs=3, num_hidden_neurons=100):
+    def __init__(self, input_length=32,
+                 embedding_dimension=32,
+                 batch_size=32,
+                 epochs=3,
+                 num_hidden_neurons=100,
+                 dropout=0,
+                 rnn_type='gru'):
+
         self.input_length = input_length
-        self.num_words = num_words
         self.embedding_dimension = embedding_dimension
         self.batch_size = batch_size
         self.epochs = epochs
         self.num_hidden_neurons = num_hidden_neurons
+        self.dropout = dropout
+        self.rnn_type = rnn_type
 
         self._rnn = None
 
     def fit(self, X, y=None):
         assert (y is not None), "Y is required"
+        assert (self.rnn_type in ['gru', 'lstm', 'simple']), "Invalid RNN type"
+
         X = pad_sequences(X, self.input_length)
 
+        num_words = 0
+        for x in X:
+            for word_id in x:
+                if word_id > num_words:
+                    num_words = word_id
+        num_words += 1
+
         self._rnn = Sequential()
-        self._rnn.add(Embedding(
-            self.num_words, self.embedding_dimension, input_length=self.input_length))
-        self._rnn.add(GRU(self.num_hidden_neurons))
+        self._rnn.add(Embedding(num_words, self.embedding_dimension,
+                                input_length=self.input_length))
+        if self.dropout > 0:
+            self._rnn.add(Dropout(self.dropout))
+
+        if self.rnn_type is 'gru':
+            self._rnn.add(GRU(self.num_hidden_neurons))
+        elif self.rnn_type is 'lstm':
+            self._rnn.add(LSTM(self.num_hidden_neurons))
+        else:
+            self._rnn.add(SimpleRNN(self.num_hidden_neurons))
+
+        if self.dropout > 0:
+            self._rnn.add(Dropout(self.dropout))
         self._rnn.add(Dense(1))
         self._rnn.add(Activation('sigmoid'))
         self._rnn.compile(loss='binary_crossentropy',
