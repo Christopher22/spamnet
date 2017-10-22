@@ -10,8 +10,15 @@ However, without the suitable algorithms, even these available datasets are just
 
 ### Datasets
 
-Every data mining algorithm is only that good as the data, which is feed into it. Having, therefore, a suitable number of reliable and correctly classified samples for training is crucial. In this experiment, X comments are used for the generation of the model and its evaluation. These samples were extracted and hand-annotated by X using five highly popular videos on "YouTube" and contain beside the author, the date of writing and an id the actual comment and classification label. Other than comparable dataset like X, all the X spam comments and Y non-spam comments are written in English. While this fact implies already a loss of potential useable knowledge, it simplifies the actual processing of the data dramatically: Beside some emoticons, the texts do not utilize advanced and therefore hardly handleable Unicode features; some comments contain additional makeup data for formatting purposes in the form of HTML tags. The data is split into five comma-separated CSV files, where quotes are used to escape comma in the actual text.
+Every data mining algorithm is only that good as the data, which is feed into it. Having, therefore, a suitable number of reliable and correctly classified samples for training is crucial. In this experiment, 1956 comments are used for the generation of the model and its evaluation. These samples were extracted and hand-annotated by X using five highly popular videos on "YouTube" and contain beside the author, the date of writing and an id the actual comment and classification label. Other than comparable dataset like X, all the X spam comments and Y non-spam comments are written in English. While this fact implies already a loss of potential useable knowledge, it simplifies the actual processing of the data dramatically: Beside some emoticons, the texts do not utilize advanced and therefore hardly handleable Unicode features; some comments contain additional makeup data for formatting purposes in the form of HTML tags. The data is split into five comma-separated CSV files, where quotes are used to escape comma in the actual text.
 Due to its nature, trained data mining models should have the ability to correctly classify data which vary from those they were trained on. A common problem is the so-called "overfitting": In this case, the algorithm learns not model behind the actual features but the features itself. To minimize this risk, a separation of training and testing data is therefore essential; in this report, a ratio of 70% training and 30% testing data was used. Moreover, most machine learning algorithm contains a partly random element leading to different models between different training sets. To find a reliable average of performance, all the following experiments were applied at least three times. The actual data was used to create four different setups provides not only information of the actual generalizability of a model but also about the differences in performance with a different amount of samples. 
+
+| ID | Name           | Training samples | Testing samples | Description                                                         |
+|----|----------------|:----------------:|:---------------:|---------------------------------------------------------------------|
+| 1  | Single         | 245              | 105             | Training and testing on all samples of a single file                |
+| 2  | SingleSplitted | 350              | 105             | Training on all samples of a single file, testing on 30% of another |
+| 3  | Multi          | 1369             | 587             | Training and testing on all samples of all files                    |
+| 4  | MultiSplitted  | 1606             | 350             | Training on four files, testing on the other                        |
 
 On the datasets 1 and 3, a classical 3-fold cross validation where used, guaranteeing that the algorithm trains all the time on different data. To archive that goal, the sets were split into three parts of equal length preserving the original distribution of the classes. The training was applied afterward on the two parts and tested on the other while shifting through the set.
 On the sets 2 and 4, another approach was applied: After the selection of the training and testing set the data was shuffled after each evaluation. While such a strategy may not provide such a solid overview of the general performance as a cross-validation, it is useful to evaluate the independence of an algorithm towards the actual order of the samples instead of their underlying features.
@@ -33,22 +40,22 @@ For a convenient integration into the Scikit-learn workflow, the different word 
 Preprocessing 1: Standardization
 In the first preprocessing step, standardization was performed to reduce the amount of lexically different but semantical equal entities significantly. This process is essential for two reasons: On the one hand, it extends the raw input with semantic information usable for the classification algorithm. As an example, many spam comments contain URL or YouTube channels being advertised. While humans can quickly identify these entities through the presence of the characteristic parts "http" and (often) ".com," every one of these looks completely different for an algorithm. On the other hand, further preprocessing algorithms like POS taggers may be irritated by the special chars used in the "noisy" way we humans use social media. Utilizing different regular expressions, URLs, numbers, and emoticons were replaced by a fixed constant in this step. Afterwards, any other special character beside the expected punctuation got removed.
 
-Preprocessing 2: Slang removal
+##### Preprocessing 2: Slang removal
 In this step, the extensive amount of slang words and spelling mistakes got reduced. For doing that, first multiple times repeated character like in the word "loooooove" got removed. Because almost any English term contains at most two times the same letters behind each other, the overall amount of proper English words were untouched by replacing only three or more occurrences. In a next step, common slang words and spelling mistakes got replaced with their proper form according to the dictionary generated by X (...). Even if this list was generated automatically and is not entirely trustworthy; this step reduced the amount of variance in the text again.
 
-Preprocessing 3: POS tagging and lemmatization
+##### Preprocessing 3: POS tagging and lemmatization
 In the next step, all the words in the now somewhat cleaned sentences got reduced to their standard form. The algorithm of choice was, in this case, the Stanford Lemmatizer. Other than a slightly simple Stemmer, this algorithm utilized additional knowledge about the actual word it is applied to improve the actual result. For providing the exact type of word, the entities were POS-tagged according to the sentence structure utilizing the Penrose corpus as their corp. After the classification by the Perceptron Tagger provided by the NLTK package, this knowledge was used to lemmatize the comment word by word.
 
-Preprocessing 4: Stop word removal
+##### Preprocessing 4: Stop word removal
 In this step, every word known for its minimal information value got removed after their consideration for the actual sentence structure in the POS-tagging step before. While words like "to" may be essential and commonly used in our natural way of communication, they do not carry any significant data for the actual classification of the elements. The deletion is, therefore, an easy and efficient way to reduce again the number of words the algorithms have to handle. 
 
-Preprocessing 4: Stemming
+##### Preprocessing 5: Stemming
 Often, Stemming is used as a less complicated alternative to a lemmatization. Instead of reducing a word to a valid English term for a phrase, its reduction to a word stem usually is more straightforward to implement. Nevertheless, the usage besides the lemmatization has a reason: The combination of both approaches should lead to an optimal reduction of features being misspelled or otherwise wrongly classified. At the end of this step, the comments consisted out of a list of not longer syntactic correct words.
 
-Preprocessing 5: Lowercase
+##### Preprocessing 6: Lowercase
 In the next step, the capitalization of all words was standardized to a complete lowercase variant. After the tagging and stemming, the kind of the first character did not carry needed knowledge anymore. By lowercasing all the characters, same words perceived by a human were also equal in the byte representation the text algorithm are applied on.
 
-Preprocessing 6: Finalization
+##### Preprocessing 7: Finalization
 In the final step, the last remaining punctation necessary in the former steps like dots, commas, and hyphens got removed. Only the actual lowercase characters remained and represented the source of features used in the vectorization and classification of the following algorithms.
 
 #### Step 3: Vectorization
