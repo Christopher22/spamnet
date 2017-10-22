@@ -31,7 +31,6 @@ class Preprocessor(ABC):
 
 class StandardizePreprocessor(Preprocessor):
     def __init__(self):
-        # \/?watch \? v = \S+
         self.regex_url = re.compile(r'[^\s|^\.]+\.[a-z]{2,3}[^\s]*')
         self.regex_number = re.compile(r'\b[0-9]+\b')
         self.regex_emoji = re.compile(r'[\S]{0,3}:[\S]{1,3}')
@@ -40,10 +39,8 @@ class StandardizePreprocessor(Preprocessor):
     def optimize(self, tokenized_comment):
         return [self.regex_emoji.sub('EMOJII',
                                      self.regex_number.sub('NUM',
-                                                           self.regex_url.sub(
-                                                               'URL', self.regex_special.sub('', word))
-                                                           )
-                                     )
+                                                           self.regex_url.sub('URL',
+                                                                              self.regex_special.sub('', word))))
                 for word in tokenized_comment]
 
 
@@ -116,7 +113,8 @@ class StopwordPreprocessor(Preprocessor):
         self.stop_words = set(stopwords.words('english'))
 
     def optimize(self, tokenized_comment):
-        return [word for word in tokenized_comment if word.lower() not in self.stop_words]
+        return [word for word in tokenized_comment
+                if word.lower() not in self.stop_words]
 
 
 class LowercasePreprocessor(Preprocessor):
